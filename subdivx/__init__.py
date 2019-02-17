@@ -2,7 +2,7 @@ import requests
 from bs4 import BeautifulSoup
 from collections import namedtuple
 from time import sleep
-from threading import Thread
+from concurrent.futures import ThreadPoolExecutor
 import re
 
 try:
@@ -20,24 +20,15 @@ HEADERS = {'user-agent': 'subsfinder/{}'.format(__version__)}
 PARAMS = {'buscar': 'game+of+thrones+s01e01', 'accion': '5'}
 DEBUG = False
 
-
-class AsyncDownloader(Thread):
-    def __init__(self, url, params):
-        super().__init__()
-        self.url = url
-        self.params = params
-
-    def run(self):
-        self.result = fetch_html(self.url, self.params)
-
-    def join(self):
-        Thread.join(self)
-        return self.result
-
-
-def pages_downloader(pages):
-    """Download multiple pages asynchronously.
-    """
+def pages_async_downloader(pages, params):
+    # Download multiple pages asynchronously.
+    executor = ThreadPoolExecutor(MAX_THREADS)
+    threads_pool = []
+    _params = params.copy()
+    for page_number in range(2, pages + 1):
+        _params["pg"] = str(page_number)
+        threads_pool.append(executor.submit(fetch_html, BASE_ENDPOINT, _params))
+    return [thread.result() for thread in threads_pool]
 
 
 def search_by_name(search, params=PARAMS):
@@ -47,21 +38,7 @@ def search_by_name(search, params=PARAMS):
     results.extend(parser.get_subtitles())
     pages = parser.get_pages()
     if pages:
-        counter = 0
-        threads_pool = []
-        for page_number in range(2, pages + 1):
-            params["pg"] = str(page_number)
-            threads_pool.append(AsyncDownloader(BASE_ENDPOINT, params))
-        for thread in threads_pool:
-            if counter <= MAX_THREADS:
-                thread.start()
-                counter += 1
-            else:
-                sleep(1)
-                thread.start()
-                counter = 1
-
-        htmls = [thread.join() for thread in threads_pool]
+        htmls = pages_async_downloader(pages, params)
         for html in htmls:
             page_parser = HtmlParser(html)
             results.extend(page_parser.get_subtitles())
