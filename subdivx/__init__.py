@@ -1,11 +1,10 @@
 import requests
 from bs4 import BeautifulSoup
-from urllib.parse import urljoin
 from collections import namedtuple
 from time import sleep
 from threading import Thread
-from time import sleep
 import re
+
 try:
     import lxml
     PARSER = "lxml"
@@ -15,11 +14,12 @@ except ImportError:
 __version__ = "0.1"
 MAX_THREADS = 8
 DOMAIN = "www.subdivx.com"
-PROTO = "http://"
+PROTO = "https://"
 BASE_ENDPOINT = "{}{}/index.php".format(PROTO, DOMAIN)
 HEADERS = {'user-agent': 'subsfinder/{}'.format(__version__)}
 PARAMS = {'buscar': 'game+of+thrones+s01e01', 'accion': '5'}
-SectionsPaired = namedtuple("SectionsPaired", ["title", "data"])
+DEBUG = False
+
 
 class AsyncDownloader(Thread):
     def __init__(self, url, params):
@@ -38,6 +38,7 @@ class AsyncDownloader(Thread):
 def pages_downloader(pages):
     """Download multiple pages asynchronously.
     """
+
 
 def search_by_name(search, params=PARAMS):
     params["buscar"] = '+'.join(search.split())
@@ -77,8 +78,8 @@ def fetch_html(url, params=None, headers=HEADERS, retries=3):
         Example: http://www.subdivx.com/index.php
     params : dict
         Params of the url, requests library compose the url using that.
-        "Buscar" if the main field, haves the string to search.
-        "Action" should not be change.
+        "Buscar" is the main field, haves the string to search.
+        "Action" this should not change unless the engine of website change.
         Example:
             params = {
                 "buscar": "game+of+thrones+s01e01",
@@ -97,30 +98,31 @@ def fetch_html(url, params=None, headers=HEADERS, retries=3):
         response = requests.get(url, params=params, headers=headers)
         if retries and 500 <= response.status_code < 600:
             sleep(1)
-            return fetch_html(url, params, headers, proxies, retries - 1)
+            return fetch_html(url, params, headers, retries - 1)
         else:
             return response.text
-    except Exception:
-        raise Exception("Something was wrong fetching data")
+    except Exception as e:
+        raise Exception("Something was wrong fetching data. {}".format(e))
 
 
 class Subtitle:
-    """Container for all data of a single subtitle result.
+    """Structure for all data of a single subtitle.
 
-    If the class has public attributes, they may be documented here
-    in an ``Attributes`` section and follow the same formatting as a
-    function's ``Args`` section. Alternatively, attributes may be documented
-    inline with the attribute's declaration (see __init__ method below).
-
-    Properties created with the ``@property`` decorator should be documented
-    in the property's getter method.
+    Parameters
+    ----------
+    data : dict
+        dict with all attributes
 
     Attributes
     ----------
-    attr1 : str
-        Description of `attr1`.
-    attr2 : :obj:`int`, optional
-        Description of `attr2`.
+    link : str
+        url of the subtitle
+    description : str
+        Description of the subtitle
+    downloads : int
+        Amount fo downloads
+    download_link : str
+        Url to download the subtitle file
 
     """
 
@@ -129,24 +131,31 @@ class Subtitle:
         self.description = data["description"]
         self.downloads = data["downloads"]
         self.download_link = data["download_link"]
+        self.score = 0
+        # self.title = data["title"]
 
     def download_subtitle(self):
-        data = requests.get
+        data = requests.get()
 
 
 class HtmlParser:
+    # The data for a subtitle is split in two different sections.
+    # Returned by _pair_sections() and used by get_subtitles()
+    PairedSections = namedtuple("PairedSections", ["title", "data"])
+
     def __init__(self, html, parser=PARSER):
         self.soup = BeautifulSoup(html, parser)
         self.pages = 0
 
     def _pair_sections(self):
+        # Pair the two sections of html for a single subtitle
         titles = self.soup.find_all('div', {"id": "menu_detalle_buscador"})
         datas = self.soup.find_all('div', {"id": "buscador_detalle"})
-        return [SectionsPaired(title, data) for title, data in zip(titles, datas)]
+        return [self.PairedSections(title, data) for title, data in zip(titles, datas)]
 
     @staticmethod
     def _extract_downloads(strings):
-        """Receives a iterable of strings from BS, return int with downloads."""
+        """Receives a iterable of html strings ,return int with number of downloads."""
         downloads = 0
         all_strings = list(strings)
         for index, line in enumerate(all_strings):
@@ -160,27 +169,26 @@ class HtmlParser:
                 pass
         return downloads
 
-
     def process_pages(self):
-
+        pass
 
     def get_pages(self):
-        """Method to get the total pages of a specific search."""
+        """Find the total result pages of a specific search."""
         if not self.pages:
-            data = self.soup.find_all('div', {"class": "pagination"})[0]
+            data = self.soup.find_all('div', {"class": "pagination"})[-1]
             urls = data.find_all("a")
-            self.pages = int(urls[-2].contents[0])
+            if urls:
+                self.pages = int(urls[-2].contents[0])
         return self.pages
 
     def get_subtitles(self):
         subs_pairs = self._pair_sections()
         return [Subtitle({
-                    "link": sub.title.a.get("href"),
-                    "description": sub.data.div.get_text(),
-                    "download_link": sub.data.find("a", {"target": "new"}).get("href"),
-                    "downloads": self._extract_downloads(sub.data.strings)
-                }) for sub in subs_pairs]
-
+            "link": sub.title.a.get("href"),
+            "description": sub.data.div.get_text(),
+            "download_link": sub.data.find("a", {"target": "new"}).get("href"),
+            "downloads": self._extract_downloads(sub.data.strings)
+        }) for sub in subs_pairs]
 
 
 class Results(list):
