@@ -1,9 +1,9 @@
 import requests
+import re
 from bs4 import BeautifulSoup
 from collections import namedtuple
 from time import sleep
 from concurrent.futures import ThreadPoolExecutor
-import re
 
 try:
     import lxml
@@ -21,7 +21,30 @@ PARAMS = {'buscar': 'game+of+thrones+s01e01', 'accion': '5'}
 DEBUG = False
 
 def pages_async_downloader(pages, params):
-    # Download multiple pages asynchronously.
+    """Function to download asyncronously the rest of the pages of a subtitule search.
+    Call fetch_html function to retrieve the html
+
+    Parameters
+    ----------
+    pages : int
+        Number of the total pages of a subtitle search. Obtained from get_pages method.
+        The first page was downloaded by searcher, this download from 2th page to "pages"
+    params : dict
+        Params of the url, requests library compose the url using that.
+        "Buscar" is the main field, haves the string to search.
+        "Action" this should not change unless the engine of website change.
+        Example:
+            params = {
+                "buscar": "game+of+thrones+s01e01",
+                "accion": "5"
+                }
+
+    Returns
+    -------
+    list
+        List with all html's from all pages.
+
+    """
     executor = ThreadPoolExecutor(MAX_THREADS)
     threads_pool = []
     _params = params.copy()
@@ -32,14 +55,36 @@ def pages_async_downloader(pages, params):
 
 
 def search_by_name(search, params=PARAMS):
+    """Function to search subtitle by name (string).
+
+    Parameters
+    ----------
+    search : str
+        String with text to search.
+        Example: "game of thrones s01e01"
+    params : dict
+        Params of the url, requests library compose the url using that.
+        "Buscar" is the main field, haves the string to search.
+        "Action" this should not change unless the engine of website change.
+        Example:
+            params = {
+                "buscar": "game+of+thrones+s01e01",
+                "accion": "5"
+                }
+
+    Returns
+    -------
+    Results
+        result object with all subtitles of the search.
+
+    """
     params["buscar"] = '+'.join(search.split())
     parser = HtmlParser(fetch_html(BASE_ENDPOINT, params))
     results = Results()
     results.extend(parser.get_subtitles())
     pages = parser.get_pages()
     if pages:
-        htmls = pages_async_downloader(pages, params)
-        for html in htmls:
+        for html in pages_async_downloader(pages, params):
             page_parser = HtmlParser(html)
             results.extend(page_parser.get_subtitles())
     return results
@@ -83,15 +128,12 @@ def fetch_html(url, params=None, headers=HEADERS, retries=3):
 
 
 class Subtitle:
-    """Structure for all data of a single subtitle.
-
-    Parameters
-    ----------
-    data : dict
-        dict with all attributes
+    """Structure for the data of a single subtitle.
 
     Attributes
     ----------
+    title : str
+        title of the subtitle
     link : str
         url of the subtitle
     description : str
@@ -101,18 +143,44 @@ class Subtitle:
     download_link : str
         Url to download the subtitle file
 
+    Methods
+    -------
+    download
+        Download the file corresponding to the subtitle.
+
     """
 
     def __init__(self, data):
-        self.link = data["link"]
+        """Init object.
+
+        Parameters
+        ----------
+        data : dict
+            dict with all attributes of the subtitle.
+
+        """
+        self.title = data["title"]
         self.description = data["description"]
         self.downloads = data["downloads"]
+        self.link = data["link"]
         self.download_link = data["download_link"]
-        self.score = 0
-        # self.title = data["title"]
 
-    def download_subtitle(self):
-        data = requests.get()
+    def download(self):
+        """Download the file corresponding to the subtitle.
+
+        Returns
+        -------
+        bytes
+            bytes object with content of subtitle file downloaded or None
+
+        """
+        res = requests.get(self.download_link)
+        # Subdivx don't return 404 with wrong url. This check if url haves extensions to ensure that returns a file.
+        file_pattern = r'\..{3}$'
+        if res.status_code <= 400 and re.search(file_pattern, res.url):
+            return res.content
+        else:
+            return None
 
 
 class HtmlParser:
@@ -131,8 +199,8 @@ class HtmlParser:
         return [self.PairedSections(title, data) for title, data in zip(titles, datas)]
 
     @staticmethod
-    def _extract_downloads(strings):
-        """Receives a iterable of html strings ,return int with number of downloads."""
+    def get_downloads(strings):
+        """Receives a iterable of html strings, return int with number of downloads."""
         downloads = 0
         all_strings = list(strings)
         for index, line in enumerate(all_strings):
@@ -146,9 +214,6 @@ class HtmlParser:
                 pass
         return downloads
 
-    def process_pages(self):
-        pass
-
     def get_pages(self):
         """Find the total result pages of a specific search."""
         if not self.pages:
@@ -159,12 +224,15 @@ class HtmlParser:
         return self.pages
 
     def get_subtitles(self):
+        """Return a list with all subtitle objects of the html input"""
         subs_pairs = self._pair_sections()
+        print(subs_pairs[0].title.text)
         return [Subtitle({
-            "link": sub.title.a.get("href"),
+            "title": self.sub.text,
             "description": sub.data.div.get_text(),
-            "download_link": sub.data.find("a", {"target": "new"}).get("href"),
-            "downloads": self._extract_downloads(sub.data.strings)
+            "downloads": self.get_downloads(sub.data.strings),
+            "link": sub.title.a.get("href"),
+            "download_link": sub.data.find("a", {"target": "new"}).get("href")
         }) for sub in subs_pairs]
 
 
