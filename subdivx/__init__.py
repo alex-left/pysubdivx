@@ -4,6 +4,10 @@ from bs4 import BeautifulSoup
 from collections import namedtuple
 from time import sleep
 from concurrent.futures import ThreadPoolExecutor
+from tempfile import NamedTemporaryFile, TemporaryDirectory
+from patoolib import extract_archive
+from pathlib import Path
+
 
 try:
     import lxml
@@ -32,7 +36,7 @@ def pages_async_downloader(pages, params):
     params : dict
         Params of the url, requests library compose the url using that.
         "Buscar" is the main field, haves the string to search.
-        "Action" this should not change unless the engine of website change.
+        "Action" this should not change unless the engine of website changes.
         Example:
             params = {
                 "buscar": "game+of+thrones+s01e01",
@@ -126,6 +130,12 @@ def fetch_html(url, params=None, headers=HEADERS, retries=3):
     except Exception as e:
         raise Exception("Something was wrong fetching data. {}".format(e))
 
+class SubtitleFailedDownload(Exception):
+    pass
+
+
+class SubtitleFailedExtraction(Exception):
+    pass
 
 class Subtitle:
     """Structure for the data of a single subtitle.
@@ -149,6 +159,16 @@ class Subtitle:
         Download the file corresponding to the subtitle.
 
     """
+    VALID_EXTENSIONS = {
+        "srt",
+        "ssa",
+        "ass",
+        "sub",
+        "usf",
+        "ssf"
+    }
+
+    Subtitle_file = namedtuple("Subtitle_file", ["extension", "content"])
 
     def __init__(self, data):
         """Init object.
@@ -159,19 +179,57 @@ class Subtitle:
             dict with all attributes of the subtitle.
 
         """
-        self.title = data["title"]
-        self.description = data["description"]
-        self.downloads = data["downloads"]
-        self.link = data["link"]
-        self.download_link = data["download_link"]
+        for k, v in data.items():
+            setattr(self, k, v)
 
-    def download(self):
+    def get_subtitle(self):
+        """Get bytes object with subtitle.
+
+        Returns
+        -------
+        bytes
+            bytes object or None
+        """
+        try:
+            data = self._download()
+            subtitle_file = self._uncompress(data)
+        except SubtitleFailedDownload:
+            print("Can't download the subtitile")
+            raise
+        except SubtitleFailedExtraction:
+            raise
+
+        return subtitle_file
+
+    def _uncompress(self, data):
+        temp_file = NamedTemporaryFile()
+        temp_dir = TemporaryDirectory()
+        with open(temp_file.name, "wb") as f:
+            f.write(data)
+        try:
+            extract_archive(archive=temp_file.name, outdir=temp_dir.name)
+        except Exception as e:
+            raise (SubtitleFailedExtraction(e))
+        path = Path(temp_dir.name)
+        files = list(path.iterdir())
+        try:
+            result = next(file for file in files if file.suffix.lower() in self.VALID_EXTENSIONS)
+            print(result)
+        except Exception:
+            raise SubtitleFailedExtraction("not found valid subtitle in downloaded file")
+        return self.Subtitle_file(result.suffix, result.read_bytes())
+
+
+
+
+
+    def _download(self):
         """Download the file corresponding to the subtitle.
 
         Returns
         -------
         bytes
-            bytes object with content of subtitle file downloaded or None
+            bytes object or None
 
         """
         res = requests.get(self.download_link)
@@ -180,7 +238,7 @@ class Subtitle:
         if res.status_code <= 400 and re.search(file_pattern, res.url):
             return res.content
         else:
-            return None
+            raise SubtitleFailedDownload()
 
 
 class HtmlParser:
@@ -226,9 +284,8 @@ class HtmlParser:
     def get_subtitles(self):
         """Return a list with all subtitle objects of the html input"""
         subs_pairs = self._pair_sections()
-        print(subs_pairs[0].title.text)
         return [Subtitle({
-            "title": self.sub.text,
+            "title": sub.title.text,
             "description": sub.data.div.get_text(),
             "downloads": self.get_downloads(sub.data.strings),
             "link": sub.title.a.get("href"),
