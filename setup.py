@@ -13,5 +13,5 @@ setup(
     packages=["subdivx"],
     license='GPL-v3',
     long_description=open('README.md').read(),
-    install_requires=["patoolib", "BS4", "requests"]
+    install_requires=["patool", "BS4", "requests"]
 )
