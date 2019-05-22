@@ -5,11 +5,11 @@ from pathlib import Path
 
 class FunctionalMockedParserTest(unittest.TestCase):
     def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         data = Path("subdivx/tests/terror.4pages.html").read_text()
         self.parser = subdivx.HtmlParser(data)
         # self.search_results = subdivx.search_by_name("the terror")
-        super().__init__(*args, **kwargs)
-
+        
     def test_get_pages(self):
         self.assertGreaterEqual(4, self.parser.get_pages())
 

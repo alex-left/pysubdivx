@@ -44,5 +44,5 @@ class Searcher:
                 page_parser = HtmlParser(html)
                 results.extend(page_parser.get_subtitles())
         for sub in results:
-            setattr(sub, "search", search)
+            setattr(sub, "from_search", search)
         return results

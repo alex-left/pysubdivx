@@ -38,8 +38,6 @@ class Subtitle:
         "ssf"
     }
 
-    Subtitle_file = namedtuple("Subtitle_file", ["extension", "content"])
-
     def __init__(self, data):
         """Init object.
 
@@ -53,24 +51,27 @@ class Subtitle:
             setattr(self, k, v)
 
     def get_subtitle(self):
-        """Get bytes object with subtitle.
+        """Return a list with the data of all subtitles files
 
         Returns
         -------
-        bytes
-            bytes object or None
+        list 
+          dict:
+            "filename": str - name of the subtitile
+            "extension": str - extension of the subititle, 
+            "data": bytes - subtitle data
 
         """
         try:
             data = self._download()
-            subtitle_file = self._uncompress(data)
+            subtitle_files = self._uncompress(data)
         except SubtitleFailedDownload:
-            print("Can't download the subtitile")
+            print("Can't download the subtitle")
             raise
         except SubtitleFailedExtraction:
             raise
 
-        return subtitle_file
+        return subtitle_files
 
     def _uncompress(self, data):
         temp_file = NamedTemporaryFile()
@@ -81,13 +82,24 @@ class Subtitle:
             extract_archive(archive=temp_file.name, outdir=temp_dir.name)
         except Exception as e:
             raise (SubtitleFailedExtraction(e))
-        path = Path(temp_dir.name)
-        files = list(path.iterdir())
-        try:
-            result = next(file for file in files if file.suffix.lower() in self.VALID_EXTENSIONS)
-        except Exception:
+        finally:
+            temp_file.close()
+        temp_path = Path(temp_dir.name)
+        subtitles_files = [file for file in temp_path.iterdir() if file.suffix.lower().replace(".", "") in self.VALID_EXTENSIONS]
+
+        if not subtitles_files:
             raise SubtitleFailedExtraction("not found valid subtitle in downloaded file")
-        return self.Subtitle_file(result.suffix, result.read_bytes())
+        
+        
+        
+        subs = [{
+            "filename": sub.name, 
+            "extension": sub.suffix, 
+            "data": sub.read_bytes()} for sub in subtitles_files]
+        
+        temp_dir.cleanup()
+        return subs
+
 
     def _download(self):
         """Download the file corresponding to the subtitle.
