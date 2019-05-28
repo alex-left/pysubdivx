@@ -50,7 +50,7 @@ class Subtitle:
         for k, v in data.items():
             setattr(self, k, v)
 
-    def get_subtitle(self):
+    def get_subtitles(self):
         """Return a list with the data of all subtitles files
 
         Returns
