@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 from setuptools import setup
-import sys
 
 setup(
     python_requires='>=3.4',
@@ -9,7 +8,7 @@ setup(
     author='Alex Left',
     author_email='alejandro.izquierdo.b@mrmilu.com',
     url='',
-    version='0.1',
+    version='0.2',
     packages=["subdivx"],
     license='GPL-v3',
     long_description=open('README.md').read(),

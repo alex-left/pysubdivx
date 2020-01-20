@@ -58,5 +58,4 @@ class HtmlParser:
             "description": sub.data.div.get_text(),
             "downloads": self.get_downloads(sub.data.strings),
             "link": sub.title.a.get("href"),
-            "download_link": sub.data.find("a", {"target": "new"}).get("href")
         }) for sub in subs_pairs]
