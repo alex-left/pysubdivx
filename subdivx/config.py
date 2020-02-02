@@ -1,4 +1,4 @@
-__version__ = "0.2"
+__version__ = "0.3"
 MAX_THREADS = 16
 DOMAIN = "www.subdivx.com"
 PROTO = "https://"

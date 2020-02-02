@@ -107,16 +107,34 @@ class Subtitle:
         temp_dir.cleanup()
         return subs
 
-    def _get_download_link(self):
-        """Receives a main link of a subtitle page and returns the download link."""
+    def _get_download_link_v2(self):
+        """parse uncommon link."""
         soup = BeautifulSoup(fetch_html(self.link), PARSER)
         lines = soup.find_all('a', {"class": "detalle_link"})
         d_link = None
         for line in lines:
             if line.get_text().lower() == "download":
                 d_link = line.get("href")
+        return d_link
+
+    def _get_download_link_v1(self):
+        """common way."""
+        soup = BeautifulSoup(fetch_html(self.link), PARSER)
+        lines = soup.find_all('a', {"class": "link1"})
+        try:
+            d_link = lines[0].get("href")
+        except:
+            d_link = None
+        return d_link
+
+    def _get_download_link(self):
+        """gets a main link of a subtitle page and returns the download link."""
+        d_link = self._get_download_link_v1()
+        if d_link:
+            return d_link
+        d_link = self._get_download_link_v2()
         if not d_link:
-            raise Exception("Download link not found")
+            raise("Not download link found")
         final_link = "{}{}/{}".format(PROTO, DOMAIN, d_link)
         return final_link
 
