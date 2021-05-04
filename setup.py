@@ -8,7 +8,7 @@ setup(
     author='Alex Left',
     author_email='alejandro.izquierdo.b@mrmilu.com',
     url='',
-    version='0.3',
+    version='0.3.0',
     packages=["subdivx"],
     license='GPL-v3',
     long_description=open('README.md').read(),

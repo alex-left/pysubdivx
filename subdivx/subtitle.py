@@ -2,10 +2,11 @@ from tempfile import NamedTemporaryFile, TemporaryDirectory
 from patoolib import extract_archive
 from pathlib import Path
 import requests
-import re
 
 from bs4 import BeautifulSoup
 from .downloader import fetch_html
+
+from urllib.parse import urlparse, parse_qs
 try:
     import lxml
     PARSER = "lxml"
@@ -130,9 +131,8 @@ class Subtitle:
     def _get_download_link(self):
         """gets a main link of a subtitle page and returns the download link."""
         d_link = self._get_download_link_v1()
-        if d_link:
-            return d_link
-        d_link = self._get_download_link_v2()
+        if not d_link:
+            d_link = self._get_download_link_v2()
         if not d_link:
             raise("Not download link found")
         final_link = "{}{}/{}".format(PROTO, DOMAIN, d_link)
@@ -149,10 +149,12 @@ class Subtitle:
         """
         if not self.download_link:
             self.download_link = self._get_download_link()
+
+        parsed_url = urlparse(self.download_link)
+        parsed_params = parse_qs(parsed_url.query)
+        self.download_link = "{}://{}/sub{}/{}.zip".format(parsed_url.scheme, parsed_url.hostname, parsed_params["u"][0], parsed_params["id"][0] )
         res = requests.get(self.download_link)
-        # Subdivx don't return 404 with wrong url. This check if url haves extensions to ensure that returns a file.
-        file_pattern = r'\..{3}$'
-        if res.status_code <= 400 and re.search(file_pattern, res.url):
+        if res.status_code <= 400:
             return res.content
         else:
             raise SubtitleFailedDownload()

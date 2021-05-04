@@ -1,6 +1,6 @@
 from .parser import HtmlParser
-from .downloader import fetch_html, pages_async_downloader
-from .config import BASE_ENDPOINT
+from .downloader import fetch_html
+from .config import BASE_ENDPOINT, MAX_PAGES
 
 class Searcher:
     PARAMS = {'buscar': None, 'accion': '5'}
@@ -38,11 +38,15 @@ class Searcher:
         parser = HtmlParser(fetch_html(BASE_ENDPOINT, params))
         results = []
         results.extend(parser.get_subtitles())
-        pages = parser.get_pages()
-        if pages:
-            for html in pages_async_downloader(pages, params):
-                page_parser = HtmlParser(html)
-                results.extend(page_parser.get_subtitles())
+
+        for page in range(MAX_PAGES):
+            params["pg"] = str(page)
+            parser = HtmlParser(fetch_html(BASE_ENDPOINT, params))
+            temp_result = parser.get_subtitles()
+            if not temp_result:
+                break
+            results.extend(temp_result)
+
         for sub in results:
             setattr(sub, "from_search", search)
         return results

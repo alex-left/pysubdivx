@@ -5,3 +5,4 @@ PROTO = "https://"
 BASE_ENDPOINT = "{}{}/index.php".format(PROTO, DOMAIN)
 HEADERS = {'user-agent': 'subsfinder/{}'.format(__version__)}
 DEBUG = False
+MAX_PAGES = 30
