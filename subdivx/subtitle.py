@@ -152,9 +152,11 @@ class Subtitle:
 
         parsed_url = urlparse(self.download_link)
         parsed_params = parse_qs(parsed_url.query)
-        self.download_link = "{}://{}/sub{}/{}.zip".format(parsed_url.scheme, parsed_url.hostname, parsed_params["u"][0], parsed_params["id"][0] )
-        res = requests.get(self.download_link)
+        download_link = "{}://{}/sub{}/{}".format(parsed_url.scheme, parsed_url.hostname, parsed_params["u"][0], parsed_params["id"][0])
+        res = requests.get(download_link + ".zip")
         if res.status_code <= 400:
             return res.content
-        else:
-            raise SubtitleFailedDownload()
+        res = requests.get(download_link + ".rar")
+        if res.status_code <= 400:
+            return res.content
+        raise SubtitleFailedDownload()
